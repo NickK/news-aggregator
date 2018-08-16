@@ -47,6 +47,7 @@ class Crawler:
 				link_label = anchor.text.encode('utf-8').decode('ascii', 'ignore').strip()
 				link_url = anchor.get('href', '/')
 
+				# Aggregator websites may not necessarily link to news, but could also link to pdfs, images or cool apis, so we need to save the link label
 				sourceTitle = ''
 				if item['aggregator'] is 1:
 					sourceTitle = anchor.text.encode('utf-8').decode('ascii', 'ignore').strip()
@@ -74,13 +75,17 @@ class Crawler:
 			success = 0
 			dump = ''
 
+			# For semantic websites that use the article element
 			if content.select('article h1, article h2'):
 				success = 1
 				dump = self.getContent(content, 'article', 'article p')
 
+			# For websites that aren't sementic
 			elif content.select('meta[property="author"],meta[property="article:published_time"],meta[content="article"]'):
 				success = 1
 				dump = self.getContent(content, '', 'p')
+
+			# turn off sourceLink row so it doesn't get fetched again
 			else:
 				print('deactivate sourceLink')
 
@@ -123,28 +128,3 @@ class Crawler:
 
 
 crawler = Crawler()
-
-'''
-Add the titles from user submitted content for agg website
-Content select(h1) etc need their own classes
-
-
-
-THEORY:
-
-Global pages:
-Only save links with labels
-
-Individual pages
-Script looks for <article> element that have an h1 inside of them
-if true
-	Save everything inside article
---
-if page has author meta
-else if true:
-	Save the whole page or at least closest to the content possible
---
-else:
-	Delete page from sourceLinks
-
-'''
