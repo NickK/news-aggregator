@@ -2,7 +2,11 @@ import pymysql.cursors
 from bs4 import BeautifulSoup
 import requests
 import os
-
+import time
+import arrow
+from datetime import datetime
+import re
+from dateutil.parser import parse
 
 class Crawler:
 
@@ -24,8 +28,8 @@ class Crawler:
 
 		try:
 		    with connection.cursor() as cursor:
-		    	self.collectLinks(cursor)
-		    	connection.commit()
+		    	#self.collectLinks(cursor)
+		    	#connection.commit()
 		    	
 		    	self.crawlThroughLinks(cursor)
 		    	connection.commit()
@@ -64,7 +68,7 @@ class Crawler:
 	def crawlThroughLinks(self, cursor):
 		#crawl through links and collect website articles
 		
-		sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID';
+		sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID WHERE sources.sourceID  > 1';
 		cursor.execute(sql)
 		items = cursor.fetchall()
 		for item in items:
@@ -95,12 +99,14 @@ class Crawler:
 					update = 'UPDATE sourceLinks SET sourceArticle = %s WHERE sourceLinksID = %s'
 					cursor.execute(update, (dump[1], item['sourceLinksID']))
 				else:
-					update = 'UPDATE sourceLinks SET sourceTitle = %s, sourceArticle = %s WHERE sourceLinksID = %s'
-					cursor.execute(update, (dump[0], dump[1], item['sourceLinksID']))
+					update = 'UPDATE sourceLinks SET sourceTitle = %s, sourceDate = %s, sourceArticle = %s WHERE sourceLinksID = %s'
+					cursor.execute(update, (dump[0], dump[1], dump[2], item['sourceLinksID']))
 					
 
 	def getContent(self, content, title, paragraph):
-		title = content_dump = ''
+		time_success = 0
+		title = timestamp = content_dump = ''
+		time = '1111-11-11 00:00:00'
 		if content.select(title + ' h1'):
 			for item_h1 in content.select(title + ' h1'):
 				title = item_h1.text.encode('utf-8').decode('ascii', 'ignore')
@@ -109,16 +115,48 @@ class Crawler:
 				title = item_h2.text.encode('utf-8').decode('ascii', 'ignore')
 
 		for item_p in content.select(paragraph):
-			print(item_p.encode('utf-8').decode('ascii', 'ignore'))
 			content_dump += item_p.encode('utf-8').decode('ascii', 'ignore')
 
-		return [title, content_dump]
-		
-		#print('test')
+		if content.findAll("div", {"class" : re.compile('date.*')}):
+			time_success = 1
+			dates = content.findAll("div", {"class" : re.compile('date.*')})
+			try:
+				timestamp = dates[0]['data-seconds']
+			except KeyError:
+			    pass
+
+		if content.find("p", {"class" : re.compile('date.*')}):
+			time_success = 1
+			dates = content.find("p", {"class" : re.compile('date.*')})
+			try:
+				timestamp = dates.text
+			except KeyError:
+			    pass
+
+
+		if content.find("time"):
+			time_success = 1
+			dates = content.find("time")
+			try:
+				timestamp = dates['datetime']
+			except KeyError:
+			    pass
+			try:
+				timestamp = dates['data-timestamp']
+			except KeyError:
+			    pass
+
+
+		if time_success and len(timestamp) > 8:
+			if timestamp.isdigit() is False:
+				timestamp = parse(timestamp,fuzzy=True)
+			timestamp = arrow.get(timestamp)
+			time = timestamp.format('YYYY-MM-DD HH:mm:ss')
+
+		return [title, time, content_dump]
 	def fetchAndParseWebsite(self, link_url):
 		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
 		story = requests.get(url=link_url, headers=headers)
-		print(story)
 		return BeautifulSoup(story.content, 'html.parser')
 	def convertToAbsoluteURL(self, aggregator, domain, link):
 		# Some websites use relative URLs not absolute URLS
