@@ -4,7 +4,9 @@ COPY . /var/www/html
 COPY .docker/vhosts.conf /etc/apache2/sites-available/000-default.conf
 
 RUN apt-get update && apt-get install -y nano python python-pip python-dev build-essential python3 python3-pip
-RUN chown -R www-data:www-data /var/www/html/ && a2enmod rewrite
+
+RUN useradd -ms /bin/bash tyrion
+RUN chown -R tyrion:www-data /var/www/html/ && a2enmod rewrite
 
 RUN pip3 install --upgrade setuptools
 

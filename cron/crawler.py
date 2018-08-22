@@ -7,6 +7,9 @@ import arrow
 from datetime import datetime
 import re
 from dateutil.parser import parse
+import nltk
+from nltk.collocations import *
+
 
 class Crawler:
 
@@ -28,8 +31,8 @@ class Crawler:
 
 		try:
 		    with connection.cursor() as cursor:
-		    	#self.collectLinks(cursor)
-		    	#connection.commit()
+		    	self.collectLinks(cursor)
+		    	connection.commit()
 		    	
 		    	self.crawlThroughLinks(cursor)
 		    	connection.commit()
@@ -60,7 +63,7 @@ class Crawler:
 				if len(link_label) > 30 and '<img' not in link_label and '<source' not in link_label  and "#comments" not in link_url and "/users/" not in link_url: 
 					#Prepare list item
 					links.append([item['sourceID'], self.convertToAbsoluteURL(item['aggregator'], item['domain'],anchor.get('href', '/')), sourceTitle])
-					insert_sql =  "INSERT IGNORE INTO sourceLinks (sourceID, sourceLink, sourceTitle, created_at, updated_at) VALUES (%s, %s, %s, now(), now())"
+					insert_sql =  "INSERT IGNORE INTO sourceLinks (sourceID, sourceLink, sourceTitle, created_at, updated_at, active) VALUES (%s, %s, %s, now(), now(), 0)"
 					
 			cursor.executemany(insert_sql, links)
 
@@ -68,7 +71,9 @@ class Crawler:
 	def crawlThroughLinks(self, cursor):
 		#crawl through links and collect website articles
 		
-		sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID WHERE sources.sourceID  > 1';
+		#sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID WHERE sourceLinks.active = 0';
+		sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID INNER JOIN userSourcesRelationship ON userSourcesRelationship.sourceID=sources.sourceID WHERE sourceLinks.active = 0';
+
 		cursor.execute(sql)
 		items = cursor.fetchall()
 		for item in items:
@@ -88,10 +93,25 @@ class Crawler:
 			elif content.select('meta[property="author"],meta[property="article:published_time"],meta[content="article"]'):
 				success = 1
 				dump = self.getContent(content, '', 'p')
+				bigram_measures = nltk.collocations.BigramAssocMeasures()
 
+				# change this to read in your data
+				finder = BigramCollocationFinder.from_words(
+				   nltk.corpus.genesis.words(dump[3]))
+
+				# only bigrams that appear 3+ times
+				finder.apply_freq_filter(3) 
+
+				# return the 5 n-grams with the highest PMI
+				finder.nbest(bigram_measures.pmi, 5)  
+
+				print(finder)
 			# turn off sourceLink row so it doesn't get fetched again
 			else:
-				print('deactivate sourceLink')
+				# Can't find the article on the page. Deactivate the link so it's not used anymore
+				update = 'UPDATE sourceLinks SET active = 0 WHERE sourceLinksID = %s'
+				cursor.execute(update, (item['sourceLinksID']))
+
 
 
 			if success is 1:
@@ -99,14 +119,14 @@ class Crawler:
 					update = 'UPDATE sourceLinks SET sourceArticle = %s WHERE sourceLinksID = %s'
 					cursor.execute(update, (dump[1], item['sourceLinksID']))
 				else:
-					update = 'UPDATE sourceLinks SET sourceTitle = %s, sourceDate = %s, sourceArticle = %s WHERE sourceLinksID = %s'
-					cursor.execute(update, (dump[0], dump[1], dump[2], item['sourceLinksID']))
-					
+					update = 'UPDATE sourceLinks SET sourceTitle = %s, sourceDate = %s, sourceArticle = %s, active = %s WHERE sourceLinksID = %s'
+					cursor.execute(update, (dump[0], dump[1], dump[2], dump[3], item['sourceLinksID']))					
 
 	def getContent(self, content, title, paragraph):
 		time_success = 0
 		title = timestamp = content_dump = ''
-		time = '1111-11-11 00:00:00'
+		time = None
+		active = 0
 		if content.select(title + ' h1'):
 			for item_h1 in content.select(title + ' h1'):
 				title = item_h1.text.encode('utf-8').decode('ascii', 'ignore')
@@ -117,6 +137,8 @@ class Crawler:
 		for item_p in content.select(paragraph):
 			content_dump += item_p.encode('utf-8').decode('ascii', 'ignore')
 
+		
+		#Fetching time is a bit tricky. Different websites use different elements, classes and date formats to display their time
 		if content.findAll("div", {"class" : re.compile('date.*')}):
 			time_success = 1
 			dates = content.findAll("div", {"class" : re.compile('date.*')})
@@ -146,14 +168,15 @@ class Crawler:
 			except KeyError:
 			    pass
 
-
+		# Only format time if something is found
 		if time_success and len(timestamp) > 8:
 			if timestamp.isdigit() is False:
 				timestamp = parse(timestamp,fuzzy=True)
 			timestamp = arrow.get(timestamp)
 			time = timestamp.format('YYYY-MM-DD HH:mm:ss')
+			active = 1
 
-		return [title, time, content_dump]
+		return [title, time, content_dump, active]
 	def fetchAndParseWebsite(self, link_url):
 		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
 		story = requests.get(url=link_url, headers=headers)
