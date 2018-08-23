@@ -7,16 +7,18 @@ import arrow
 from datetime import datetime
 import re
 from dateutil.parser import parse
-import nltk
-from nltk.collocations import *
+from dotenv import load_dotenv
 
+#load env file
+dotenv_path = '../.env'
+load_dotenv(dotenv_path)
 
 class Crawler:
 
-	MYSQL_HOST = 'mysql'
-	MYSQL_USER = 'root'
-	MYSQL_PASSWORD = 'root'
-	MYSQL_DATABASE = 'database'
+	MYSQL_HOST = os.environ.get("DB_HOST")
+	MYSQL_USER = os.environ.get("DB_USERNAME")
+	MYSQL_PASSWORD = os.environ.get("DB_PASSWORD")
+	MYSQL_DATABASE = os.environ.get("DB_DATABASE")
 	MYSQL_CHARSET = 'utf8'
 
 	def __init__(self):
@@ -72,7 +74,7 @@ class Crawler:
 		#crawl through links and collect website articles
 		
 		#sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID WHERE sourceLinks.active = 0';
-		sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID INNER JOIN userSourcesRelationship ON userSourcesRelationship.sourceID=sources.sourceID WHERE sourceLinks.active = 0';
+		sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID INNER JOIN userSourcesRel ON userSourcesRel.sourceID=sources.sourceID WHERE sourceLinks.active = 0';
 
 		cursor.execute(sql)
 		items = cursor.fetchall()
@@ -93,19 +95,6 @@ class Crawler:
 			elif content.select('meta[property="author"],meta[property="article:published_time"],meta[content="article"]'):
 				success = 1
 				dump = self.getContent(content, '', 'p')
-				bigram_measures = nltk.collocations.BigramAssocMeasures()
-
-				# change this to read in your data
-				finder = BigramCollocationFinder.from_words(
-				   nltk.corpus.genesis.words(dump[3]))
-
-				# only bigrams that appear 3+ times
-				finder.apply_freq_filter(3) 
-
-				# return the 5 n-grams with the highest PMI
-				finder.nbest(bigram_measures.pmi, 5)  
-
-				print(finder)
 			# turn off sourceLink row so it doesn't get fetched again
 			else:
 				# Can't find the article on the page. Deactivate the link so it's not used anymore
@@ -116,10 +105,10 @@ class Crawler:
 
 			if success is 1:
 				if item['aggregator'] is 1:
-					update = 'UPDATE sourceLinks SET sourceArticle = %s WHERE sourceLinksID = %s'
+					update = 'UPDATE sourceLinks SET sourceRaw = %s WHERE sourceLinksID = %s'
 					cursor.execute(update, (dump[1], item['sourceLinksID']))
 				else:
-					update = 'UPDATE sourceLinks SET sourceTitle = %s, sourceDate = %s, sourceArticle = %s, active = %s WHERE sourceLinksID = %s'
+					update = 'UPDATE sourceLinks SET sourceTitle = %s, sourceDate = %s, sourceRaw = %s, active = %s WHERE sourceLinksID = %s'
 					cursor.execute(update, (dump[0], dump[1], dump[2], dump[3], item['sourceLinksID']))					
 
 	def getContent(self, content, title, paragraph):

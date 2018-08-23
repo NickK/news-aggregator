@@ -12,4 +12,4 @@ RUN pip3 install --upgrade setuptools
 
 RUN apt-get install -y make nano build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev xz-utils libmcrypt-dev mysql-client && docker-php-ext-install mysqli mcrypt pdo_mysql
 
-RUN pip3 install pymysql bs4 arrow
+RUN pip3 install pymysql bs4 arrow python-dotenv
