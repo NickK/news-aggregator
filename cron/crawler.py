@@ -43,7 +43,7 @@ class Crawler:
 
 	def collectLinks(self, cursor):
 		# Fetch Sources from DB
-		sql = 'SELECT sourceID, domain, sourceMainURL, aggregator FROM sources WHERE aggregator = 0';
+		sql = 'SELECT sourceID, domain, sourceMainURL, aggregator FROM sources WHERE aggregator = 0 AND sourceID = 3';
 		cursor.execute(sql)
 		items = cursor.fetchall()
 		for item in items:
@@ -62,8 +62,9 @@ class Crawler:
 				if item['aggregator'] is 1:
 					sourceTitle = anchor.text.encode('utf-8').decode('ascii', 'ignore').strip()
 
+
 				# Remove links where the label is less than 30 characters (Articles usally have longer labels), exclude things like <img, <source, #comments, /users/
-				if len(link_label) > 30 and '<img' not in link_label and '<source' not in link_label  and "#comments" not in link_url and "/users/" not in link_url: 
+				if len(link_label) > 30 and '<img' not in link_label and '<source' not in link_label  and "#comments" not in link_url and "/users/" not in link_url and "javascript:void(0)" not in link_url and link_url != item['sourceMainURL']: 
 					#Prepare list item
 					links.append([item['sourceID'], self.convertToAbsoluteURL(item['aggregator'], item['domain'],anchor.get('href', '/')), sourceTitle])
 					insert_sql =  "INSERT IGNORE INTO sourceLinks (sourceID, sourceLink, sourceTitle, created_at, updated_at, active) VALUES (%s, %s, %s, now(), now(), 0)"
@@ -79,10 +80,9 @@ class Crawler:
 		cursor.execute(sql)
 		items = cursor.fetchall()
 		for item in items:
-			content = self.fetchAndParseWebsite(item['sourceLink'])
-
 			print('Crawled: %s' % (item['sourceLink']))
 
+			content = self.fetchAndParseWebsite(item['sourceLink'])
 			success = 0
 			dump = ''
 
@@ -178,9 +178,13 @@ class Crawler:
 
 		return [title, time, content_dump, active]
 	def fetchAndParseWebsite(self, link_url):
-		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
-		story = requests.get(url=link_url, headers=headers)
-		return BeautifulSoup(story.content, 'html.parser')
+		try:
+			headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+			story = requests.get(url=link_url, headers=headers)
+			return BeautifulSoup(story.content, 'html.parser')
+		except KeyError:
+			pass
+
 	def convertToAbsoluteURL(self, aggregator, domain, link):
 		# Some websites use relative URLs not absolute URLS
 
@@ -189,7 +193,6 @@ class Crawler:
 			return 'http:' + link
 
 		if domain not in link and aggregator is 0 and 'https' not in link and 'http' not in link:
-			print('domain not in link, aggregator is 0 https and http not in link: %s' % (domain + link))
 			return 'http://' + domain + link
 
 		return link
