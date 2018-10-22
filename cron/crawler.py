@@ -43,7 +43,7 @@ class Crawler:
 
 	def collectLinks(self, cursor):
 		# Fetch Sources from DB
-		sql = 'SELECT sourceID, domain, sourceMainURL, aggregator FROM sources';
+		sql = 'SELECT sourceID, domain, sourceMainURL, aggregator FROM sources WHERE aggregator = 0';
 		cursor.execute(sql)
 		items = cursor.fetchall()
 		for item in items:
@@ -55,6 +55,7 @@ class Crawler:
 			for anchor in content.find_all('a'):
 				link_label = anchor.text.encode('utf-8').decode('ascii', 'ignore').strip()
 				link_url = anchor.get('href', '/')
+
 
 				# Aggregator websites may not necessarily link to news, but could also link to pdfs, images or cool apis, so we need to save the link label
 				sourceTitle = ''
@@ -73,15 +74,14 @@ class Crawler:
 	def crawlThroughLinks(self, cursor):
 		#crawl through links and collect website articles
 		
-		#sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID WHERE sourceLinks.active = 0';
-		sql = 'SELECT sourceLinks.sourceLinksID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID INNER JOIN userSourcesRel ON userSourcesRel.sourceID=sources.sourceID WHERE sourceLinks.active = 0';
+		sql = 'SELECT sourceLinks.sourceLinkID, sourceLinks.sourceLink, sources.aggregator FROM sourceLinks INNER JOIN sources ON sourceLinks.sourceID=sources.sourceID INNER JOIN userSourcesRel ON userSourcesRel.sourceID=sources.sourceID WHERE sourceLinks.active = 0';
 
 		cursor.execute(sql)
 		items = cursor.fetchall()
 		for item in items:
 			content = self.fetchAndParseWebsite(item['sourceLink'])
 
-			print(item['sourceLink'])
+			print('Crawled: %s' % (item['sourceLink']))
 
 			success = 0
 			dump = ''
@@ -98,18 +98,18 @@ class Crawler:
 			# turn off sourceLink row so it doesn't get fetched again
 			else:
 				# Can't find the article on the page. Deactivate the link so it's not used anymore
-				update = 'UPDATE sourceLinks SET active = 0 WHERE sourceLinksID = %s'
-				cursor.execute(update, (item['sourceLinksID']))
+				update = 'UPDATE sourceLinks SET active = -1 WHERE sourceLinkID = %s'
+				cursor.execute(update, (item['sourceLinkID']))
 
 
 
 			if success is 1:
 				if item['aggregator'] is 1:
-					update = 'UPDATE sourceLinks SET sourceRaw = %s WHERE sourceLinksID = %s'
-					cursor.execute(update, (dump[1], item['sourceLinksID']))
+					update = 'UPDATE sourceLinks SET sourceRaw = %s WHERE sourceLinkID = %s'
+					cursor.execute(update, (dump[1], item['sourceLinkID']))
 				else:
-					update = 'UPDATE sourceLinks SET sourceTitle = %s, sourceDate = %s, sourceRaw = %s, active = %s WHERE sourceLinksID = %s'
-					cursor.execute(update, (dump[0], dump[1], dump[2], dump[3], item['sourceLinksID']))					
+					update = 'UPDATE sourceLinks SET sourceTitle = %s, sourceDate = %s, sourceRaw = %s, active = %s WHERE sourceLinkID = %s'
+					cursor.execute(update, (dump[0], dump[1], dump[2], dump[3], item['sourceLinkID']))					
 
 	def getContent(self, content, title, paragraph):
 		time_success = 0
@@ -161,6 +161,17 @@ class Crawler:
 		if time_success and len(timestamp) > 8:
 			if timestamp.isdigit() is False:
 				timestamp = parse(timestamp,fuzzy=True)
+
+			if isinstance(timestamp,str):
+				# Some date formats have a weird string format with 000, that needs to be divided by 1000
+				if timestamp[-3:] == '000':
+					timestamp = arrow.get(int(timestamp) / 1000)
+				else:
+					# If there's a + in the string, remove the rest
+					if "+" in timestamp:
+						print('+')
+						timestamp = timestamp.split("+")
+						timestamp = timestamp[0]
 			timestamp = arrow.get(timestamp)
 			time = timestamp.format('YYYY-MM-DD HH:mm:ss')
 			active = 1
@@ -172,8 +183,15 @@ class Crawler:
 		return BeautifulSoup(story.content, 'html.parser')
 	def convertToAbsoluteURL(self, aggregator, domain, link):
 		# Some websites use relative URLs not absolute URLS
+
+
+		if domain in link and aggregator is 0 and 'https' not in link and 'http' not in link:
+			return 'http:' + link
+
 		if domain not in link and aggregator is 0 and 'https' not in link and 'http' not in link:
+			print('domain not in link, aggregator is 0 https and http not in link: %s' % (domain + link))
 			return 'http://' + domain + link
+
 		return link
 
 
