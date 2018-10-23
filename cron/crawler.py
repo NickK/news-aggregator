@@ -1,3 +1,8 @@
+"""
+Description:
+This file is used to crawl content for articles
+"""
+
 import pymysql.cursors
 from bs4 import BeautifulSoup
 import requests
@@ -43,7 +48,7 @@ class Crawler:
 
 	def collectLinks(self, cursor):
 		# Fetch Sources from DB
-		sql = 'SELECT sourceID, domain, sourceMainURL, aggregator FROM sources WHERE aggregator = 0 AND sourceID = 3';
+		sql = 'SELECT sourceID, domain, sourceMainURL, aggregator FROM sources WHERE aggregator = 0';
 		cursor.execute(sql)
 		items = cursor.fetchall()
 		for item in items:

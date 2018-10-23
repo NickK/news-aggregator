@@ -1,3 +1,7 @@
+"""
+Description:
+This file is used to process and serve news articles to each user
+"""
 import pymysql.cursors
 import os
 from dotenv import load_dotenv
@@ -35,35 +39,47 @@ class User:
 		finally:
 			connection.close()
 
-	def fetchUserTags(self, cursor):		
-		sql = """
-				SELECT tags.tagName, tags.tagID, users.id FROM userTagsRel 
-				INNER JOIN users ON users.id=userTagsRel.userID 
-				INNER JOIN tags ON tags.tagID=userTagsRel.tagID 
-				WHERE users.updated_at IS NOT NULL OR users.updated_at IS NULL
-				ORDER BY tags.tagName ASC""";
-		cursor.execute(sql)
 
-		items = cursor.fetchall()
-		tagid = []
-
+	def fetchUserTags(self, cursor):
+		links = []
 		summary_sql = 'INSERT IGNORE INTO newsSummary (sourceLinkID, userID, tagID, points) VALUES (%s, %s, %s, %s)'
-		for item in items:
-			if item['tagID'] not in tagid:
-				tagid = []
-				tagid.append(item['tagID']);
 
-				ids = self.processRanks(cursor, item['tagName']) # Create rows based on these ids + point value
+		sql = """
+				SELECT users.id, tags.tagID, tags.tagName FROM users 
+				LEFT JOIN userTagsRel ON userTagsRel.userID=users.id 
+				INNER JOIN tags ON userTagsRel.tagID=tags.tagID 
+				WHERE users.updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+				ORDER BY users.id ASC"""
 
+		cursor.execute(sql)
+		userTags = cursor.fetchall()
+		for tag in userTags:
+			# Fetch Users Sources
+			srcIds = self.returnSourceIds(cursor, 'SELECT sourceID FROM userSourcesRel WHERE userID = %s', tag['id'])
 
-			for id_item in ids:
-				cursor.execute(summary_sql, (id_item['sourceLinkID'], item['id'], item['tagID'], id_item['rank']))
+			# Fetch and rank article importance
+			#sourceIDs.append(tag['tagName'])
+			articles = self.processRanking(cursor, tag['tagName'], srcIds)
+
+			#Prepare all links
+			for article in articles:
+				links.append([article['sourceLinkID'], tag['id'], tag['tagID'], article['rank']])
+
+		cursor.executemany(summary_sql, links)
  
-	def processRanks(self, cursor, word):
+	def processRanking(self, cursor, word, srcIds):
 		rank = ''
+		src_query = ''
 		ids = []
-		it_titles = self.returnIds(cursor, 'SELECT sourceLinkID FROM sourceLinks WHERE sourceDate >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND active = 1 AND sourceTitle LIKE %s', word, '0')
-		it_raws = self.returnIds(cursor, 'SELECT sourceLinkID FROM sourceLinks WHERE sourceDate >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND active = 1 AND sourceRaw LIKE %s', word, '1')
+
+		#Prepare query strings
+		for i in srcIds:
+			src_query += '%s,'
+
+		values = self.processRankSearchValues(srcIds.copy(),srcIds.copy(),word)
+
+		it_titles = self.returnLinkIds(cursor, 'SELECT sourceLinkID FROM sourceLinks WHERE sourceDate >= DATE_SUB(NOW(), INTERVAL 30 HOUR) AND active = 1 AND sourceID IN(' + src_query[:-1] + ') AND sourceTitle LIKE %s', values[0])
+		it_raws = self.returnLinkIds(cursor, 'SELECT sourceLinkID FROM sourceLinks WHERE sourceDate >= DATE_SUB(NOW(), INTERVAL 30 HOUR) AND active = 1 AND sourceID IN(' + src_query[:-1] + ') AND sourceRaw LIKE %s', values[1])
 
 
 		for item in it_titles:
@@ -82,14 +98,26 @@ class User:
 
 		return ids
 
-	def returnIds(self, cursor, query, word, searchtype):
+	def processRankSearchValues(self,q_title_val, q_raw_val, word):
+		q_title_val.append('%' + word + '%')
+		q_raw_val.append('% ' + word + ' %')
+
+		return [q_title_val,q_raw_val]
+
+	def returnSourceIds(self, cursor, query, id):
 		ids = []
-		if searchtype == '0':
-			cursor.execute(query, ('%' + word + '%'))
-		else:
-			cursor.execute(query, ('% ' + word + ' %'))
+		cursor.execute(query, (id))
 
+		items = cursor.fetchall()
+		for item in items:
+			ids.append(item['sourceID'])
 
+		return ids
+
+	def returnLinkIds(self, cursor, query, array):
+		ids = []
+		
+		cursor.execute(query, (array))
 		items = cursor.fetchall()
 		for item in items:
 			ids.append(item['sourceLinkID'])
@@ -101,28 +129,3 @@ class User:
 
 
 User()
-'''
-
-SELECT tags.tagName, tags.tagID, users.id FROM userTagsRel 
-INNER JOIN users ON users.id=userTagsRel.userID 
-INNER JOIN tags ON tags.tagID=userTagsRel.tagID 
-WHERE users.updated_at IS NOT NULL
-ORDER BY tags.tagName ASC;
-
-news_summary
-aggnewsID
-sourceLinkID
-userID
-tagID
-points
-
-
-Title matches should rank higher (REGEX) 3 pt
-Content matches should rank lower (REGEX) 1 pt
-
-Get ID of accounts that are active (15 days or less)
-	Loop through Tags of a User
-		Search matches for title
-		UPDATE tag
-	CLEAR CURRENT RANKING IF SUCCESFUL
-'''
