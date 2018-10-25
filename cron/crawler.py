@@ -1,8 +1,4 @@
-"""
-Description:
-This file is used to crawl content for articles
-"""
-
+#!/usr/bin/python3
 import pymysql.cursors
 from bs4 import BeautifulSoup
 import requests

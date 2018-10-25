@@ -1,0 +1,57 @@
+html, body, #app {
+	height: 100%;
+}
+
+body {
+	background: $body-bg;
+	font-family: $primary-font;
+	color: $primary-color;
+	overflow-x: hidden;
+}
+
+a {
+	color: #000;
+	&:hover {
+		color: #3c8dbc;
+		text-decoration: none;
+	}
+}
+
+h1,h2,h3 {
+	color: #000;
+}
+
+.page-wrap {
+	min-height: 100%;
+	margin-bottom: -$footer-height;
+	&:after {
+		content: "";
+		display: block;
+		height: $footer-height;
+	}
+}
+
+.section-container {
+	padding: 1em 0 ;
+}
+
+section.news-feed {
+	color: #000;
+	.item {
+		margin: 1em 0;
+		border-bottom: 1px #e7e7e7 solid;
+	}
+	.number {
+		font-size: 2.5em;
+		margin-right: 20px;
+		color: gray;
+	}
+	.meta {
+		h2 {
+			font-size: 1.5em;
+		}
+		.tags,.dated-posted {
+			color: gray;
+		}
+	}
+}

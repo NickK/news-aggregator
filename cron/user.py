@@ -1,7 +1,4 @@
-"""
-Description:
-This file is used to process and serve news articles to each user
-"""
+#!/usr/bin/python3
 import pymysql.cursors
 import os
 from dotenv import load_dotenv

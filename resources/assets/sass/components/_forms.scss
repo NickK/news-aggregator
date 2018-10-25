@@ -1,0 +1,33 @@
+.form {
+	width: 50%;
+}
+form {
+	.row {
+		margin: 10px 0;
+	}
+	.nf-before-form-content {
+		display: none;
+	}
+	.nf-field-container {
+		margin-bottom: 10px;
+	}
+	input,textarea {
+		border: none;
+	}
+	input[type="text"], input[type="email"], input[type="password"], textarea {
+		color: $form-color;
+		background: $form-input-bg;
+		padding: 1em;
+		width: 100%;
+		border-radius: .5em;
+	}
+	input[type="submit"], input[type="button"], button {
+		margin: 1.5em 0;
+	}
+}
+
+.settings-news {
+	input[type="checkbox"] {
+		margin: 5px 5px 5px 5px;
+	}
+}

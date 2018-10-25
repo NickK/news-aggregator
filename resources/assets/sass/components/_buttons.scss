@@ -1,0 +1,54 @@
+a.btn, .btn input[type="button"] {
+	background: $btn-bg;
+	border: $btn-border;
+	border-radius: 0;
+	color: $btn-color;
+	padding: .75em 3em;
+	font-weight: bold;
+	text-transform: uppercase;
+	cursor: pointer;
+	&:hover {
+		color: $btn-color-hover;
+		background: $btn-bg-hover;
+	}
+	&.dark {
+		color: $btn-dark-color;
+		border: $btn-dark-border;
+		&:hover {
+			color: $btn-dark-color-hover;
+			background: $btn-dark-bg-hover;
+		}
+	}
+}
+
+.btn-group {
+	margin-top: 1em;
+	display: block;
+	@include media-breakpoint-up(sm) {
+		display: inline-flex;
+	}
+	a {
+		width: 90%;
+		margin: 0.5em 0;
+		@include media-breakpoint-up(sm) {
+			width: auto;
+			margin: 0 0.5em 0 0;
+		}
+		&:first-child {
+			margin-left: 0;
+		}
+		&:last-child {
+			margin: 0;
+		}
+	}
+}
+
+a.back {
+	color: #fff;
+	font-weight: bold;
+	font-size: 1.2em;
+	position: absolute;
+	top: 0.5em;
+	left: 0.5em;
+	text-transform: initial;
+}
