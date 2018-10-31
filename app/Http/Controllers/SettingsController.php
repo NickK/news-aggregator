@@ -34,7 +34,6 @@ class SettingsController extends Controller
 
   
     	$user = User::find($authuser->id);
-		$user->name = $request->name;
 		$user->email = $request->email;
 		$user->password = bcrypt($request->password);
 
